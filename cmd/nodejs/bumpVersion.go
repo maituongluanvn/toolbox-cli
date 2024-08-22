@@ -31,14 +31,17 @@ var bumpVersionCmd = &cobra.Command{
 		var newVersion string
 
 		// Ask the question about version
-		errAsk := survey.AskOne(prompt, &newVersion)
-		if errAsk != nil {
-			fmt.Println("Failed to get input:", err)
+		if errAsk := survey.AskOne(prompt, &newVersion); errAsk != nil {
+			fmt.Println("Failed to get input:", errAsk)
 			return
 		}
 
+		if errBumpVersion := packagejson.BumpVersion("package.json",newVersion); errBumpVersion != nil {
+			fmt.Println("Not correct version format: ",errBumpVersion)
+			return
+		}
 
-		packagejson.BumpVersion("package.json",newVersion)
+		// Ask to commit and create pull request
 
 		// Print the answer
 		fmt.Printf("Hello, %s!\n", newVersion)
