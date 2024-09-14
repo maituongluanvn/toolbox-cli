@@ -27,3 +27,6 @@ go.work.sum
 
 # build
 toolbox-cli
+
+# Ignore output directory
+output/
