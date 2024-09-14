@@ -31,8 +31,8 @@ var bumpVersionCmd = &cobra.Command{
 		var newVersion string
 
 		// Ask the question about version
-		if errAsk := survey.AskOne(prompt, &newVersion); errAsk != nil {
-			fmt.Println("Failed to get input:", errAsk)
+		if err := survey.AskOne(prompt, &newVersion); err != nil {
+			fmt.Println("Failed to get input:", err)
 			return
 		}
 
@@ -41,7 +41,15 @@ var bumpVersionCmd = &cobra.Command{
 			return
 		}
 
+		isCreatePullRequestPrompt := &survey.Input{
+			Message: "Do you want to comment then create pull request to Github ?",
+		}
+
 		// Ask to commit and create pull request
+		if err := survey.AskOne(isCreatePullRequestPrompt, &newVersion); err != nil || isCreatePullRequestPrompt != "yes" {
+			fmt.Println("Failed to get input:", err)
+			return
+		}
 
 		// Print the answer
 		fmt.Printf("Hello, %s!\n", newVersion)
