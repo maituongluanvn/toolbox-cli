@@ -3,17 +3,17 @@ package nodejs
 import (
 	"fmt"
 	"log"
+	"os/exec"
+	"strings"
 	packagejson "toolbox-cli/package"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 )
 
-// bumpVersionCmd represents the bumpVersion command
 var bumpVersionCmd = &cobra.Command{
 	Use:   "bump-version",
 	Short: "Use for bump version on package.json file",
-	Long: `A longer description`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Get version from package.json
 		version, err := packagejson.GetVersion("package.json")
@@ -36,36 +36,119 @@ var bumpVersionCmd = &cobra.Command{
 			return
 		}
 
-		if errBumpVersion := packagejson.BumpVersion("package.json",newVersion); errBumpVersion != nil {
-			fmt.Println("Not correct version format: ",errBumpVersion)
+		if errBumpVersion := packagejson.BumpVersion("package.json", newVersion); errBumpVersion != nil {
+			fmt.Println("Not correct version format: ", errBumpVersion)
 			return
 		}
 
 		isCreatePullRequestPrompt := &survey.Input{
-			Message: "Do you want to comment then create pull request to Github ?",
+			Message: "Do you want to comment then create pull request to Github? (yes/no)",
 		}
 
-		// Ask to commit and create pull request
-		if err := survey.AskOne(isCreatePullRequestPrompt, &newVersion); err != nil || isCreatePullRequestPrompt != "yes" {
+		// Store the answer
+		var createPullRequest string
+
+		// Ask if user wants to create a pull request
+		if err := survey.AskOne(isCreatePullRequestPrompt, &createPullRequest); err != nil {
 			fmt.Println("Failed to get input:", err)
 			return
 		}
 
-		// Print the answer
-		fmt.Printf("Hello, %s!\n", newVersion)
+		// Trim spaces and convert to lowercase for consistent comparison
+		createPullRequest = strings.TrimSpace(strings.ToLower(createPullRequest))
+
+		if createPullRequest != "yes" {
+			fmt.Println("No pull request will be created.")
+			return
+		}
+
+		// Create a new GitHub CLI command to create pull request
+		prTitle := "Bump version to " + newVersion
+		prBody := "This pull request bumps the package version to " + newVersion
+		headBranch := "bump-version-to-" + newVersion // Avoid spaces in branch names
+		baseBranch := "master" // Changed base branch to master
+
+		// Ensure the branch exists; if not, create it
+		if err := createBranchIfNotExists(headBranch); err != nil {
+			fmt.Printf("Failed to create branch: %v\n", err)
+			return
+		}
+
+		// Commit changes with a message
+		if err := commitChanges("bump version to " + newVersion); err != nil {
+			fmt.Printf("Failed to commit changes: %v\n", err)
+			return
+		}
+
+		// Push the branch to remote
+		if err := pushBranch(headBranch); err != nil {
+			fmt.Printf("Failed to push branch to remote: %v\n", err)
+			return
+		}
+
+		// Create the pull request using `gh` CLI
+		ghCreatePrCmd := exec.Command("gh", "pr", "create", "--title", prTitle, "--body", prBody, "--head", headBranch, "--base", baseBranch)
+		output, err := ghCreatePrCmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("Failed to create pull request: %s\n", err)
+			fmt.Println(string(output))
+			return
+		}
+
+		fmt.Println("Pull request created successfully!")
 	},
+}
+
+// createBranchIfNotExists creates the specified branch if it does not already exist
+func createBranchIfNotExists(branchName string) error {
+	// Check if branch already exists
+	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
+	err := cmd.Run()
+
+	if err != nil {
+		if strings.Contains(err.Error(), "fatal: Not a git repository") {
+			return fmt.Errorf("not a git repository")
+		}
+
+		if err.Error() == "exit status 1" {
+			// Branch does not exist, create it
+			cmd = exec.Command("git", "checkout", "-b", branchName)
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("failed to create branch: %v", err)
+			}
+		} else {
+			return fmt.Errorf("error checking branch existence: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// commitChanges commits the changes with the given message
+func commitChanges(message string) error {
+	cmd := exec.Command("git", "add", ".")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to add changes: %v", err)
+	}
+
+	cmd = exec.Command("git", "commit", "-m", message)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to commit changes: %v", err)
+	}
+
+	return nil
+}
+
+// pushBranch pushes the branch to remote
+func pushBranch(branchName string) error {
+	cmd := exec.Command("git", "push", "-u", "origin", branchName)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to push branch to remote: %v", err)
+	}
+
+	return nil
 }
 
 func init() {
 	NodeJS.AddCommand(bumpVersionCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// bumpVersionCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// bumpVersionCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

@@ -9,10 +9,10 @@ import (
 // GitCmd represents the git command
 var NodeJS = &cobra.Command{
 	Use:   "nodejs",
-	Short: "Contains git-related helper commands",
-	Long:  "A longer description that spans multiple lines and likely contains examples and usage of your command.",
+	Short: "The package contains a NodeJS helper. Use the --help command to view the available commands.",
+	Long:  "The package contains a NodeJS helper. Use the --help command to view the available commands.",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Nodejs called")
+		fmt.Println("The package contains a NodeJS helper. Use the --help command to view the available commands.")
 	},
 }
 
